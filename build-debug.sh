@@ -210,7 +210,7 @@ packer_build_box() {
   BOX="$1"
   cd "$DL_DIR/Packer" || exit 1
   (echo >&2 "Using Packer to build the $BOX Box. This can take 90-180 minutes depending on bandwidth and hardware.")
-  PACKER_LOG=1 PACKER_LOG_PATH="$DL_DIR/Packer/packer_build.log" $(which packer) build --only="$PACKER_PROVIDER-iso" "$BOX".json >&2
+  PACKER_LOG=1 PACKER_LOG_PATH="$DL_DIR/Packer/packer_build.log" $(which packer) build --only="$PACKER_PROVIDER-iso" -on-error=abort "$BOX".json >&2
   echo "$?"
 }
 
@@ -333,7 +333,8 @@ parse_cli_arguments() {
 }
 
 build_packer_boxes() {
-  PACKER_BOXES=("windows_2016" "windows_10")
+  #PACKER_BOXES=("windows_2016" "windows_10")
+  PACKER_BOXES=("windows_10")
 
   if [ "$(hostname)" == "packerwindows10" ]; then   # Workaround for CI environment
   (echo >&2 "CI Environment detected. If you are a user and are seeing this, please file an issue on GitHub.")

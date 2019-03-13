@@ -8,7 +8,7 @@ If (-not (Test-Path "C:\ProgramData\chocolatey")) {
 }
 
 Write-Host "Installing Notepad++, Chrome, WinRar, PowerSploit and Mimikatz."
-If ($(hostname) -eq "win10") {
+If ($env:computername -like "win10*") {
   # Because the Windows10 start menu sucks
   choco install -y classic-shell -installArgs ADDLOCAL=ClassicStartMenu
 }
@@ -17,9 +17,8 @@ choco install -y GoogleChrome
 choco install -y WinRar
 
 # Disable Windows Defender realtime scanning before downloading Mimikatz
-If ($env:computername -eq "win10") {
-  If (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender")
-  {
+If ($env:computername -like "win10*") {
+  If (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender") {
     Remove-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Recurse -Force
   }
   gpupdate /force | Out-String

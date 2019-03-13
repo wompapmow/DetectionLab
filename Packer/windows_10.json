@@ -45,7 +45,8 @@
       "winrm_username": "vagrant",
       "winrm_password": "vagrant",
       "winrm_timeout": "4h",
-      "shutdown_command": "shutdown /s /t 10 /f /d p:4:1 /c \"Packer Shutdown\"",
+      "shutdown_timeout": "2h",
+      "shutdown_command": "c:\\windows\\system32\\sysprep\\sysprep.exe /generalize /oobe /shutdown /unattend:a:\\unattend_10.xml",
       "guest_os_type": "windows9-64",
       "disk_size": "{{user `disk_size`}}",
       "vnc_port_min": 5900,
@@ -63,7 +64,8 @@
         "./scripts/disable-winrm.ps1",
         "./scripts/enable-winrm.ps1",
         "./scripts/microsoft-updates.bat",
-        "./scripts/win-updates.ps1"
+        "./scripts/win-updates.ps1",
+	"./scripts/unattend_10.xml"
       ],
       "vmx_data": {
         "RemoteDisplay.vnc.enabled": "false",
@@ -135,26 +137,17 @@
       "type": "powershell",
       "scripts": [
         "./scripts/debloat-windows.ps1",
-        "./scripts/rearm-windows.ps1",
-        "./scripts/MakeWindows10GreatAgain.ps1"
+        "./scripts/rearm-windows.ps1"
       ]
     },
     {
       "type": "windows-restart"
     },
     {
-      "type": "powershell",
-      "scripts": [
-        "./scripts/set-powerplan.ps1",
-        "./scripts/docker/disable-windows-defender.ps1"
-      ]
-    },
-    {
       "type": "windows-shell",
       "remote_path": "/tmp/script.bat",
       "execute_command": "{{ .Vars }} cmd /c \"{{ .Path }}\"",
       "scripts": [
-        "./scripts/pin-powershell.bat",
         "./scripts/compile-dotnet-assemblies.bat",
         "./scripts/set-winrm-automatic.bat",
         "./scripts/compact.bat"

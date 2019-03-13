@@ -1,20 +1,19 @@
 # Purpose: Sets timezone to UTC, sets hostname, creates/joins domain.
 # Source: https://github.com/StefanScherer/adfs2
 
-$box = Get-ItemProperty -Path HKLM:SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName -Name "ComputerName"
-$box = $box.ComputerName.ToString().ToLower()
+$hostname = $env:ComputerName.ToLower()
 
 Write-Host "Setting timezone to UTC"
 c:\windows\system32\tzutil.exe /s "UTC"
 
-if ($env:COMPUTERNAME -imatch 'vagrant') {
+if ($hostname -imatch 'vagrant') {
 
   Write-Host 'Hostname is still the original one, skip provisioning for reboot'
 
   Write-Host 'Install bginfo'
   . c:\vagrant\scripts\install-bginfo.ps1
 
-  Write-Host -fore red 'Hint: vagrant reload' $box '--provision'
+  Write-Host -fore red 'Hint: vagrant reload' $hostname '--provision'  # this will display incorrectly if the hostname is not provisioned correctly.
 
 } elseif ((gwmi win32_computersystem).partofdomain -eq $false) {
 
@@ -25,12 +24,12 @@ if ($env:COMPUTERNAME -imatch 'vagrant') {
     . c:\vagrant\scripts\install-bginfo.ps1
   }
 
-  if ($env:COMPUTERNAME -imatch 'dc') {
+  if ($hostname -imatch 'dc') {
     . c:\vagrant\scripts\create-domain.ps1 192.168.38.102
   } else {
     . c:\vagrant\scripts\join-domain.ps1
   }
-  Write-Host -fore red 'Hint: vagrant reload' $box '--provision'
+  Write-Host -fore red 'Hint: vagrant reload' $hostname '--provision'
 
 } else {
 
@@ -43,6 +42,4 @@ if ($env:COMPUTERNAME -imatch 'vagrant') {
 
   Write-Host 'Provisioning after joining domain'
 
-  # $script = "c:\vagrant\scripts\provision-" + $box + ".ps1"
-  # . $script
 }

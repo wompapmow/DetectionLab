@@ -9,7 +9,7 @@ $adapters = Get-WmiObject Win32_NetworkAdapterConfiguration | Where-Object {$_.I
 $adapters | ForEach-Object {$_.SetDNSServerSearchOrder($newDNSServers)}
 
 Write-Host "Now join the domain"
-$hostname = $(hostname)
+$hostname = $env:computername
 $user = "windomain.local\vagrant"
 $pass = ConvertTo-SecureString "vagrant" -AsPlainText -Force
 $DomainCred = New-Object System.Management.Automation.PSCredential $user, $pass
@@ -17,8 +17,8 @@ $DomainCred = New-Object System.Management.Automation.PSCredential $user, $pass
 # Place the computer in the correct OU based on hostname
 If ($hostname -eq "wef") {
   Add-Computer -DomainName "windomain.local" -credential $DomainCred -OUPath "ou=Servers,dc=windomain,dc=local" -PassThru
-} ElseIf ($hostname -eq "win10") {
-  Write-Host "Adding Win10 to the domain. Sometimes this step times out. If that happens, just run 'vagrant reload win10 --provision'" #debug
+} ElseIf ($hostname -like "win10*") {
+  Write-Host "Adding $hostname to the domain. Sometimes this step times out. If that happens, just run 'vagrant reload $hostname --provision'" #debug
   Add-Computer -DomainName "windomain.local" -credential $DomainCred -OUPath "ou=Workstations,dc=windomain,dc=local"
 } Else {
   Add-Computer -DomainName "windomain.local" -credential $DomainCred -PassThru

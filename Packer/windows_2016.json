@@ -143,11 +143,6 @@
         "./scripts/uac-enable.bat",
         "./scripts/compact.bat"
       ]
-    },
-    {
-      "type": "file",
-      "source": "./answer_files/2016/Autounattend_sysprep.xml",
-      "destination": "c:/Windows/Temp/Autounattend_sysprep.xml"
     }
   ],
   "post-processors": [

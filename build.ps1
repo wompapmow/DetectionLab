@@ -27,6 +27,9 @@
 
 .PARAMETER VagrantOnly
   This switch skips building packer boxes and instead downloads from www.detectionlab.network
+  
+.PARAMETER WorkstationCount
+  This switch specifies to build a multi Host environment (more than 1 Windows 10 Workstation)
 
 .EXAMPLE
   build.ps1 -ProviderName virtualbox
@@ -40,6 +43,10 @@
   build.ps1 -ProviderName vmware_desktop -VagrantOnly
 
   This command builds the DetectionLab using vmware and skips the packer process, downloading the boxes instead.
+.EXAMPLE
+  build.ps1 -ProviderName vmware_desktop -VagrantOnly -WorkstationCount 3
+  
+  This command builds the DetectionLab using vmware, skipping the packer process (downloading the boxes instead), and adds 3 Windows 10 workstations on the domain.
 #>
 
 [cmdletbinding()]
@@ -48,11 +55,12 @@ Param(
   [ValidateSet('virtualbox', 'vmware_desktop')]
   [string]$ProviderName,
   [string]$PackerPath = 'C:\Hashicorp\packer.exe',
-  [switch]$VagrantOnly
+  [switch]$VagrantOnly,
+  [int]$WorkstationCount = 1
 )
 
 $DL_DIR = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-$LAB_HOSTS = ('logger', 'dc', 'wef', 'win10')
+$LAB_HOSTS  = ('logger', 'dc', 'wef')
 
 # Register-EngineEvent PowerShell.Exiting -SupportEvent -Action {
 #   Set-Location $DL_DIR
@@ -190,12 +198,32 @@ function download_boxes {
 
   $win10Filename = "windows_10_$PackerProvider.box"
   $win2016Filename = "windows_2016_$PackerProvider.box"
-
+  
   $wc = New-Object System.Net.WebClient
-  Write-Verbose "[download_boxes] Downloading $win10Filename"
-  $wc.DownloadFile("https://www.detectionlab.network/$win10Filename", "$DL_DIR\Boxes\$win10Filename")
-  Write-Verbose "[download_boxes] Downloading $win2016Filename"
-  $wc.DownloadFile("https://www.detectionlab.network/$win2016Filename", "$DL_DIR\Boxes\$win2016Filename")
+  
+  # Check if we have a box already, if we don't then download, if we do check hashes and redownload if necessary
+  if (Test-Path "$DL_DIR\Boxes\$win2016Filename") {
+    $win2016Filehash = (Get-FileHash -Path "$DL_DIR\Boxes\$win2016Filename" -Algorithm MD5).Hash
+	if ($win2016hash -ne $win2016Filehash) {
+      Write-Verbose "[download_boxes] Older Version of $win2016Filename detected, downloading newest"
+	  $wc.DownloadFile("https://www.detectionlab.network/$win2016Filename", "$DL_DIR\Boxes\$win2016Filename")
+    }
+  } else {
+	Write-Verbose "[download_boxes] Downloading $win2016Filename"
+    $wc.DownloadFile("https://www.detectionlab.network/$win2016Filename", "$DL_DIR\Boxes\$win2016Filename")
+  }
+  if (Test-Path "$DL_DIR\Boxes\$win10Filename") {
+    $win10Filehash = (Get-FileHash -Path "$DL_DIR\Boxes\$win10Filename" -Algorithm MD5).Hash
+    if ($win10hash -ne $win10Filehash) {
+      Write-Verbose "[download_boxes] Older Version of $win10Filename detected, downloading newest"
+	  $wc.DownloadFile("https://www.detectionlab.network/$win10Filename", "$DL_DIR\Boxes\$win10Filename")
+    }
+  } else {
+    Write-Verbose "[download_boxes] Downloading $win10Filename"
+    $wc.DownloadFile("https://www.detectionlab.network/$win10Filename", "$DL_DIR\Boxes\$win10Filename")
+  }
+  
+  # Done with downloading windows boxes
   $wc.Dispose()
 
   if (-Not (Test-Path "$DL_DIR\Boxes\$win2016Filename")) {
@@ -253,7 +281,7 @@ function preflight_checks {
   Write-Verbose '[preflight_checks] Checking for vagrant instances..'
   $CurrentDir = Get-Location
   Set-Location "$DL_DIR\Vagrant"
-  if (($(vagrant status) | Select-String -Pattern "not[ _]created").Count -ne 4) {
+  if (($(vagrant status) | Select-String -Pattern "\(" | Select-String -Not -Pattern "not[ _]created").Count -gt 0) {
     Write-Error 'You appear to have already created at least one Vagrant instance. This script does not support already created instances. Please either destroy the existing instances or follow the build steps in the README to continue.'
     break
   }
@@ -453,7 +481,34 @@ else {
   move_boxes
 }
 
-# Vagrant up each box and attempt to reload one time if it fails
+# Restore Orig file if it exists and we've gotten this far in the build process
+# Implies that there is no running vagrant environment and that the current Vagrantfile is likely not our expected 'default' state
+if (Test-Path "$DL_DIR\Vagrant\Vagrantfile.orig") {
+    $CurrentDir = Get-Location
+    Set-Location "$DL_DIR\Vagrant"
+    Move-Item -Force Vagrantfile.orig Vagrantfile  # restore contents
+    Set-Location $CurrentDir
+}
+
+if ($WorkstationCount -gt 1) {  # only make changes to Vagrantfile if necessary
+    $WorkstationCount -= 1  # adjust for zero index
+    $CurrentDir = Get-Location
+    Set-Location "$DL_DIR\Vagrant"
+    Copy-Item Vagrantfile Vagrantfile.orig  # backup contents
+    Get-Content Vagrantfile | %{$_ -replace "0..0\).each do","0..$WorkstationCount).each do" | Set-Content Vagrantfile
+    Set-Location $CurrentDir
+
+    $counter = 0
+    while($counter -le $WorkstationCount) {
+      $LAB_HOSTS += "win10-$counter"
+      $counter += 1
+    }
+}
+else {
+    $LAB_HOSTS += 'win10-0'
+}
+
+# Vagrant up each infrasturcture box and attempt to reload one time if it fails
 forEach ($VAGRANT_HOST in $LAB_HOSTS) {
   Write-Verbose "[main] Running vagrant_up_host for: $VAGRANT_HOST"
   $result = vagrant_up_host -VagrantHost $VAGRANT_HOST
@@ -474,7 +529,8 @@ forEach ($VAGRANT_HOST in $LAB_HOSTS) {
   Write-Verbose "[main] Finished for: $VAGRANT_HOST"
 }
 
-
 Write-Verbose "[main] Running post_build_checks"
 post_build_checks
 Write-Verbose "[main] Finished post_build_checks"
+
+
